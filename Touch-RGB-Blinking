@@ -1,0 +1,72 @@
+#include "mbed.h"
+#include "TSISensor.h"
+
+#define LED_ON                  0
+#define LED_OFF                 1
+#define RGB_COMPONENTS          3
+#define RGB_COLORS              ((int) pow(2 *1.0, RGB_COMPONENTS *1.0))
+#define BAUDRATE                115200
+#define MAXDELAY                0.3
+#define UART_INTERVAL           0.2
+
+float sliderNewValue;       // temp data of touch slider
+float mainLoopDuration;     // main loop measurement
+float delay = MAXDELAY;     // blink delay
+Serial pc(USBTX, USBRX);    // UART
+
+void debugOutput()
+{
+    if (sliderNewValue > 0)
+    {
+        // UART output
+        pc.printf("slider input = %3.0f%%  -->  ", 100.0 * sliderNewValue);
+        pc.printf("blink delay = %3.0f ms", 1000 * delay);
+        pc.printf("   (last main loop took %4.0f ms)\n", mainLoopDuration);
+    }
+}
+
+int main()
+{
+    // RGB LED
+    DigitalOut led_rgb_red(LED1);   // red
+    DigitalOut led_rgb_grn(LED2);   // green
+    DigitalOut led_rgb_blu(LED3);   // blue
+    DigitalOut led_rgb[RGB_COMPONENTS] = {led_rgb_red, led_rgb_grn, led_rgb_blu};
+    
+    // Touch slider
+    TSISensor tsi;
+    
+    // UART
+    pc.baud(BAUDRATE);
+    
+    // ticker for debugOutput()
+    Ticker ticker1;
+    ticker1.attach(&debugOutput, UART_INTERVAL);
+
+    // timer for main loop measurement
+    Timer timer1;
+
+    // main loop
+    while (true)
+    {
+        timer1.start();
+        
+        // show all colors
+        for (int i=1; i<RGB_COLORS; i++, wait(delay))   // for each possible color
+        {
+            for (int j=0; j<RGB_COMPONENTS; j++)            // for each LED component
+                led_rgb[j] = ( i & 1<<j ) ? LED_ON : LED_OFF;   // set LED component according to active color
+
+            // check for active slider input
+            if ( (sliderNewValue = tsi.readPercentage()) > 0)
+            {
+                // set delay to slider input
+                delay = MAXDELAY * sliderNewValue;
+            }
+        }
+    
+        timer1.stop();
+        mainLoopDuration = timer1.read_ms();
+        timer1.reset();
+    }
+}
